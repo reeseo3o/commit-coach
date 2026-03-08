@@ -1,0 +1,71 @@
+{
+  "name": "commit-coach",
+  "version": "0.1.0",
+  "description": "AI-powered CLI for commit and PR message coaching",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "commit-coach": "dist/cli.js",
+    "ccoach": "dist/cli.js",
+    "ccm": "dist/cli.js",
+    "cc": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/**/*.test.ts",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cli",
+    "git",
+    "commit",
+    "pr",
+    "ai",
+    "openai",
+    "conventional-commits",
+    "commit-message"
+  ],
+  "author": "reeseo3o",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reeseo3o/commit-coach.git"
+  },
+  "bugs": {
+    "url": "https://github.com/reeseo3o/commit-coach/issues"
+  },
+  "homepage": "https://github.com/reeseo3o/commit-coach#readme",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "figlet": "^1.10.0",
+    "gradient-string": "^3.0.0",
+    "openai": "^6.27.0",
+    "ora": "^9.3.0",
+    "simple-git": "^3.32.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.30.0",
+    "@types/node": "^25.3.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
