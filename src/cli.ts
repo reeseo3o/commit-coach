@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import packageJson from "../package.json" with { type: "json" };
 import { runMsgCommand } from "./commands/msg.js";
 import { runPrCommand } from "./commands/pr.js";
 import chalk from "chalk";
@@ -15,7 +16,7 @@ program
   .option("--brand", "Show branded banner output", true)
   .option("--no-brand", "Hide branded banner output")
   .option("--theme <theme>", "Brand color theme (ocean|sunset|forest)")
-  .version("0.1.0");
+  .version(packageJson.version);
 
 program.hook("preAction", async (thisCommand) => {
   const opts = thisCommand.opts<{ brand?: boolean; theme?: string }>();
