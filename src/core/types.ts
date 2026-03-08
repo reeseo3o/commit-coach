@@ -10,6 +10,7 @@ export interface CommitCoachConfig {
   model: string;
   brandTheme: BrandTheme;
   mascotStyle: MascotStyle;
+  apiKey?: string;
 }
 
 export interface CommitSuggestion {
