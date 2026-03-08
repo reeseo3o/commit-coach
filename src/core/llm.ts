@@ -747,11 +747,19 @@ function parseJson<T>(text: string): T {
 
 function getClient(config: CommitCoachConfig): OpenAI {
   const apiKey = config.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing. Run 'ccm config:set apiKey <key>' or set the OPENAI_API_KEY environment variable.");
+  if (!apiKey && config.provider !== "ollama") {
+    throw new Error("API key is missing. Run 'ccm config:set apiKey <key>' or set the OPENAI_API_KEY environment variable.");
   }
 
-  return new OpenAI({ apiKey });
+  const clientOptions: { apiKey: string; baseURL?: string } = {
+    apiKey: apiKey ?? "ollama"
+  };
+
+  if (config.baseURL) {
+    clientOptions.baseURL = config.baseURL;
+  }
+
+  return new OpenAI(clientOptions);
 }
 
 export async function requestCommitSuggestions(
@@ -794,4 +802,10 @@ export async function requestPrSuggestion(
   }
 
   return parsed;
+}
+
+export async function listModels(config: CommitCoachConfig): Promise<string[]> {
+  const client = getClient(config);
+  const response = await client.models.list();
+  return response.data.map((m) => m.id).sort();
 }
