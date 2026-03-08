@@ -12,63 +12,67 @@ AI-powered CLI for generating high-signal commit messages and pull request summa
 
 - Keeps commit messages consistent without forcing templates.
 - Works with AI when available and falls back to deterministic heuristics.
-- Supports Korean and English output.
-- Handles project-local and global defaults with clear precedence.
-
-## Features
-
-- `msg`: generate one recommended commit message from staged changes.
-- `pr`: generate PR title/body from branch diff.
-- File-level PR highlights (for example: `src/app/page.tsx: ContentRow 제거, footer 텍스트 변경`).
 - Multi-provider LLM support: OpenAI, Groq, Ollama, Gemini, DeepSeek, Mistral, OpenRouter.
-- Custom provider support via `baseURL` (any OpenAI-compatible API).
-- Interactive setup wizard (`ccm init`) with provider selection and model picker.
-- Global and local configuration support.
-- Safe non-interactive behavior for CI and automation.
+- Supports Korean and English output.
 
 ## Install
 
 ### Global install
 
 ```bash
+# npm
 npm install -g @lizzy_o3o/commit-coach
+
+# pnpm
+pnpm add -g @lizzy_o3o/commit-coach
+
+# yarn
+yarn global add @lizzy_o3o/commit-coach
+
+# bun
+bun add -g @lizzy_o3o/commit-coach
 ```
 
-### Run without global install
+### Run without installing
 
 ```bash
 npx @lizzy_o3o/commit-coach --help
+# or
+pnpx @lizzy_o3o/commit-coach --help
 ```
 
-### Useful aliases
+### Available aliases
 
-`@lizzy_o3o/commit-coach` installs these binary names:
+After install, these commands are all equivalent:
 
-- `commit-coach`
-- `ccoach`
-- `ccm`
+```bash
+commit-coach --help
+ccoach --help
+ccm --help
+```
 
-Note: `cc` may resolve to `clang` on macOS, so prefer `ccoach` or `ccm`.
+> `cc` is also registered but may conflict with `clang` on macOS. Prefer `ccm`.
 
 ## Quick Start
 
 ```bash
-# 1) first-time setup
+# 1) install
+npm install -g @lizzy_o3o/commit-coach
+
+# 2) first-time setup (choose provider, API key, model, language)
 ccm init
 
-# 2) inside your git repository
-git add .
-
 # 3) generate commit message
+git add .
 ccm msg
 
 # 4) generate PR summary
 ccm pr --base main
 ```
 
-## Commands
+## Usage
 
-### `msg`
+### `ccm msg` — Commit message
 
 Generate one recommended commit message from staged changes.
 
@@ -79,9 +83,9 @@ ccm msg --style conventional --max 72
 ccm msg --verbose
 ```
 
-### `pr`
+### `ccm pr` — PR summary
 
-Generate PR title/body from branch changes against a base branch.
+Generate PR title/body from branch diff.
 
 ```bash
 ccm pr --base main
@@ -89,71 +93,65 @@ ccm pr --lang en
 ccm pr --verbose
 ```
 
-`변경 요약` / `Change Highlights` are generated with these rules:
-
-- File-level summary format: `<path>: <detail1>, <detail2>, ...`
-- Detail order is deterministic: **remove -> modify -> add**
-- Max 3 detail points per file (to keep output readable)
-- If diff detail is sparse, commit subject is used as a fallback signal
-
-Example:
+PR summaries include file-level change highlights:
 
 ```text
 ## 변경 요약
 - src/app/page.tsx: ContentRow 제거, footer 텍스트 변경
 ```
 
-### `init`
+### `ccm init` — Setup wizard
 
-Run first-time setup wizard. This is the recommended entry point.
+Interactive setup for first-time use. This is the recommended entry point.
 
 ```bash
-ccm init
-ccm init -g
-ccm init --defaults
+ccm init          # local config
+ccm init -g       # global config
+ccm init --defaults  # skip wizard, use defaults
 ```
 
-Wizard steps:
+The wizard walks you through:
 
-- scope: local / global
-- provider: openai, groq, ollama, gemini, deepseek, mistral, openrouter, or custom
-- API key (skipped for ollama)
-- model: fetched from provider API, or enter manually
-- language: `ko` / `en`
+1. **Scope** — local (`.commit-coach.json`) or global (`~/.commit-coach.json`)
+2. **Provider** — openai, groq, ollama, gemini, deepseek, mistral, openrouter, or custom
+3. **API key** — skipped for ollama (runs locally)
+4. **Model** — fetched from provider API, or enter manually
+5. **Language** — `ko` / `en`
 
-`config:init` is kept as a backward-compatible alias.
-
-### `config:set`
-
-Update one config key.
+### `ccm config:set` — Update config
 
 ```bash
 ccm config:set language ko
 ccm config:set provider groq
 ccm config:set model llama-3.3-70b-versatile
-ccm config:set -g language en
+ccm config:set apiKey gsk_...
+ccm config:set -g language en    # update global config
 ```
 
-### `hook:install`
+### `ccm hook:install` — Git hook
 
-Install a `prepare-commit-msg` hook that shows recommendations.
+Install a `prepare-commit-msg` hook that shows recommendations on every commit.
 
 ```bash
 ccm hook:install
 ```
 
-## Global Options
+## Supported Providers
 
-```bash
-ccm --no-brand msg
-ccm --theme sunset config:init
-```
+| Provider | API key required | Notes |
+|---|---|---|
+| OpenAI | Yes | Default provider |
+| Groq | Yes | Fast inference |
+| Ollama | No | Local, no API key needed |
+| Gemini | Yes | Google AI |
+| DeepSeek | Yes | |
+| Mistral | Yes | |
+| OpenRouter | Yes | Access 300+ models |
+| Custom | Yes | Any OpenAI-compatible API via `baseURL` |
 
 ## Configuration
 
 ### Precedence
-
-Effective configuration order:
 
 1. built-in defaults
 2. global config: `~/.commit-coach.json`
@@ -175,110 +173,52 @@ Local overrides global.
 }
 ```
 
-## AI vs Fallback
+### AI vs Fallback
 
 - If a provider and API key are configured, AI output is used.
 - If not, commit-coach falls back to local heuristics.
-- Use `--verbose` to see generation source details.
+- Use `--verbose` to see which mode was used.
 
-Configure via setup wizard or manually:
-
-```bash
-ccm config:set provider openai
-ccm config:set apiKey sk-...
-```
-
-Or use environment variable (fallback):
+You can also set API key via environment variable (fallback):
 
 ```bash
 export OPENAI_API_KEY="your-key"
 ```
 
-## First-run behavior
-
-For `msg`/`pr`, commit-coach checks whether user config exists.
-
-- No config found: prints "run `ccm init`" and exits.
-- CI/non-TTY: same behavior (no auto-wizard).
-
-To skip the config check:
-
-```bash
-COMMIT_COACH_SKIP_ONBOARDING=1 ccm msg
-```
-
 ## CI / Automation
 
-Recommended flags/env for deterministic output:
+`msg`/`pr` require config to exist. In CI, either:
 
 ```bash
+# option 1: create config non-interactively
+ccm init --defaults
+
+# option 2: skip the config check
+COMMIT_COACH_SKIP_ONBOARDING=1 ccm msg
+
+# option 3: disable branding/animation
 COMMIT_COACH_BRAND=0 COMMIT_COACH_ANIMATE=0 ccm msg
 ```
 
-Use `config:init --defaults` for non-interactive setup.
-
-## Development
+## Global Options
 
 ```bash
-npm install
-npm run test
-npm run typecheck
-npm run build
-npm run dev -- --help
+ccm --no-brand msg               # hide banner
+ccm --theme sunset config:init   # change brand theme
 ```
 
-Run a single test file:
-
-```bash
-npx tsx --test src/core/llm.test.ts
-```
-
-## Release (Changesets + GitHub Actions)
-
-This repository is configured for automated releases with Changesets.
-
-### 1) Create a changeset
-
-```bash
-npm run changeset
-```
-
-Select bump type (`patch`/`minor`/`major`) and write a summary.
-
-### 2) Open PR and merge to `main`
-
-- The `Release` workflow will either:
-  - open/update a release PR (`chore: release`), or
-  - publish to npm when release changes are present on `main`.
-
-### 3) Required repository secret
-
-Set this in GitHub repository settings:
-
-- `NPM_TOKEN`: npm automation token with publish access for `@lizzy_o3o/commit-coach`
-
-### 4) Local manual release (optional)
-
-```bash
-npm run version-packages
-npm run build
-npm run release
-```
-
-
-## Reinstall Global CLI (clean reset)
-
-```bash
-npm unlink -g @lizzy_o3o/commit-coach || true
-npm uninstall -g @lizzy_o3o/commit-coach || true
-npm run build
-npm link
-ccm --help
-```
+---
 
 ## Contributing
 
 Contributions are welcome.
+
+```bash
+git clone https://github.com/reeseo3o/commit-coach.git
+cd commit-coach
+npm install
+npm run test && npm run typecheck && npm run build
+```
 
 1. Fork the repository
 2. Create a feature branch
@@ -290,7 +230,8 @@ Contributions are welcome.
 
 - Never commit secrets (API keys, credentials, `.env` values).
 - Keep local credentials out of tracked files.
+- `.commit-coach.json` is in `.gitignore` by default.
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
