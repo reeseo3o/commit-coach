@@ -6,14 +6,32 @@ import type { CommitCoachConfig } from "./types.js";
 
 const CONFIG_FILE = ".commit-coach.json";
 
+export interface ProviderPreset {
+  baseURL?: string;
+  defaultModel: string;
+}
+
+export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
+  openai: { defaultModel: "gpt-4.1-mini" },
+  groq: { baseURL: "https://api.groq.com/openai/v1", defaultModel: "llama-3.3-70b-versatile" },
+  ollama: { baseURL: "http://localhost:11434/v1", defaultModel: "llama3.2" },
+  gemini: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", defaultModel: "gemini-2.0-flash" },
+  deepseek: { baseURL: "https://api.deepseek.com/v1", defaultModel: "deepseek-chat" },
+  mistral: { baseURL: "https://api.mistral.ai/v1", defaultModel: "mistral-small-latest" },
+  openrouter: { baseURL: "https://openrouter.ai/api/v1", defaultModel: "openai/gpt-4.1-mini" },
+};
+
 const configSchema = z.object({
   language: z.enum(["ko", "en"]).default("ko"),
   commitStyle: z.enum(["conventional", "simple"]).default("conventional"),
   maxSubjectLength: z.number().int().min(30).max(120).default(72),
   scopes: z.array(z.string()).default(["core", "api", "web", "docs"]),
   model: z.string().min(1).default("gpt-4.1-mini"),
+  provider: z.string().min(1).default("openai"),
+  baseURL: z.string().url().optional(),
   brandTheme: z.enum(["ocean", "sunset", "forest"]).default("ocean"),
-  mascotStyle: z.enum(["cat", "none"]).default("cat")
+  mascotStyle: z.enum(["cat", "none"]).default("cat"),
+  apiKey: z.string().min(1).optional()
 });
 
 type ConfigKey = keyof CommitCoachConfig;
@@ -102,6 +120,24 @@ function parseConfigValue(key: ConfigKey, rawValue: string): CommitCoachConfig[C
       }
       return rawValue;
     }
+    case "apiKey": {
+      if (rawValue.trim().length === 0) {
+        throw new Error("apiKey must be a non-empty string");
+      }
+      return rawValue.trim();
+    }
+    case "provider": {
+      if (rawValue.trim().length === 0) {
+        throw new Error("provider must be a non-empty string");
+      }
+      return rawValue.trim();
+    }
+    case "baseURL": {
+      if (rawValue.trim().length === 0) {
+        throw new Error("baseURL must be a non-empty string");
+      }
+      return rawValue.trim();
+    }
   }
 }
 
@@ -111,6 +147,7 @@ export const defaultConfig: CommitCoachConfig = {
   maxSubjectLength: 72,
   scopes: ["core", "api", "web", "docs"],
   model: "gpt-4.1-mini",
+  provider: "openai",
   brandTheme: "ocean",
   mascotStyle: "cat"
 };
@@ -174,5 +211,8 @@ export const supportedConfigKeys: ConfigKey[] = [
   "scopes",
   "model",
   "brandTheme",
-  "mascotStyle"
+  "mascotStyle",
+  "apiKey",
+  "provider",
+  "baseURL"
 ];
