@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildHeuristicCommitSuggestions, buildHeuristicPrSuggestion } from "./llm.js";
+import {
+  buildHeuristicCommitSuggestions,
+  buildHeuristicPrSuggestion,
+  hasConfiguredApiKey,
+  isRateLimitError
+} from "./llm.js";
 import type { CommitCoachConfig } from "./types.js";
 
 const config: CommitCoachConfig = {
@@ -9,6 +14,7 @@ const config: CommitCoachConfig = {
   maxSubjectLength: 72,
   scopes: ["core", "api", "web", "docs"],
   model: "gpt-4.1-mini",
+  provider: "openai",
   brandTheme: "ocean",
   mascotStyle: "cat"
 };
@@ -238,4 +244,23 @@ test("buildHeuristicPrSuggestion keeps file-level detail order and caps points",
 
   assert.match(suggestion.body, /src\/app\/page\.tsx: ContentRow 제거, footerText 텍스트 변경, heroTitle 값 변경/);
   assert.doesNotMatch(suggestion.body, /metadata 구성 변경/);
+});
+
+test("hasConfiguredApiKey returns false for non-ollama without key", () => {
+  assert.equal(hasConfiguredApiKey(config, {}), false);
+});
+
+test("hasConfiguredApiKey returns true for ollama without key", () => {
+  assert.equal(hasConfiguredApiKey({ ...config, provider: "ollama" }, {}), true);
+});
+
+test("hasConfiguredApiKey returns true when apiKey exists", () => {
+  assert.equal(hasConfiguredApiKey({ ...config, apiKey: "sk-test" }, {}), true);
+});
+
+test("isRateLimitError detects status 429 and rate limit codes", () => {
+  assert.equal(isRateLimitError({ status: 429 }), true);
+  assert.equal(isRateLimitError({ code: "rate_limit_exceeded" }), true);
+  assert.equal(isRateLimitError(new Error("Rate limit reached")), true);
+  assert.equal(isRateLimitError(new Error("Network failure")), false);
 });

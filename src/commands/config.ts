@@ -11,6 +11,46 @@ interface ConfigCommandOptions {
   defaults?: boolean;
 }
 
+const MODEL_FALLBACKS: Record<string, string[]> = {
+  openai: ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"],
+  groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  ollama: ["llama3.2", "qwen2.5", "mistral"],
+  gemini: ["gemini-2.0-flash", "gemini-2.5-flash"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  mistral: ["mistral-small-latest", "mistral-large-latest"],
+  openrouter: ["openai/gpt-4.1-mini", "openai/gpt-4o-mini"]
+};
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
+}
+
+async function selectModelWithManualOption(models: string[], defaultModel: string): Promise<string> {
+  const choices = models.map((model) => ({
+    name: model === defaultModel ? `${model} ${chalk.green("← default")}` : model,
+    value: model
+  }));
+  choices.push({ name: chalk.dim("Enter model name manually"), value: "__manual__" });
+
+  const selected = await select({
+    message: "Model",
+    choices,
+    default: defaultModel
+  });
+
+  if (selected === "__manual__") {
+    return await input({ message: "Model name", default: defaultModel });
+  }
+
+  return selected;
+}
+
+function getFallbackModels(provider: string | undefined, defaultModel: string): string[] {
+  const providerModels = provider ? (MODEL_FALLBACKS[provider] ?? []) : [];
+  const presetDefault = provider ? PROVIDER_PRESETS[provider]?.defaultModel : undefined;
+  return uniqueStrings([defaultModel, ...(presetDefault ? [presetDefault] : []), ...providerModels]);
+}
+
 async function askModelFromProvider(
   partialConfig: Partial<CommitCoachConfig>,
   defaultModel: string
@@ -23,14 +63,15 @@ async function askModelFromProvider(
     spinner.stop();
 
     if (models.length === 0) {
-      console.log(chalk.yellow("No models found. Enter model name manually."));
-      return await input({ message: "Model", default: defaultModel });
+      console.log(chalk.yellow("No models fetched from provider. Showing recommended models instead."));
+      const fallbackModels = getFallbackModels(partialConfig.provider, defaultModel);
+      return await selectModelWithManualOption(fallbackModels, defaultModel);
     }
 
     const displayModels = models.slice(0, 30);
-    const choices = displayModels.map((m) => ({
-      name: m === defaultModel ? `${m} ${chalk.green("← default")}` : m,
-      value: m
+    const choices = displayModels.map((model) => ({
+      name: model === defaultModel ? `${model} ${chalk.green("← default")}` : model,
+      value: model
     }));
 
     if (models.length > 30) {
@@ -44,15 +85,12 @@ async function askModelFromProvider(
       default: defaultModel
     });
 
-    if (selected === "__manual__") {
-      return await input({ message: "Model name", default: defaultModel });
-    }
-
-    return selected;
+    return selected === "__manual__" ? await input({ message: "Model name", default: defaultModel }) : selected;
   } catch {
     spinner.stop();
-    console.log(chalk.yellow("Could not fetch models. Enter model name manually."));
-    return await input({ message: "Model", default: defaultModel });
+    console.log(chalk.yellow("Could not fetch models. Showing recommended model choices."));
+    const fallbackModels = getFallbackModels(partialConfig.provider, defaultModel);
+    return await selectModelWithManualOption(fallbackModels, defaultModel);
   }
 }
 

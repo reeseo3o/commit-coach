@@ -745,9 +745,51 @@ function parseJson<T>(text: string): T {
   }
 }
 
+export function hasConfiguredApiKey(config: CommitCoachConfig, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (config.provider === "ollama") {
+    return true;
+  }
+
+  const apiKey = config.apiKey ?? env.OPENAI_API_KEY;
+  return Boolean(apiKey && apiKey.trim().length > 0);
+}
+
+export function isRateLimitError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    const candidate = error as { status?: unknown; code?: unknown; error?: { code?: unknown; message?: unknown } };
+    if (candidate.status === 429) {
+      return true;
+    }
+    if (candidate.code === "rate_limit_exceeded") {
+      return true;
+    }
+    if (candidate.error?.code === "rate_limit_exceeded") {
+      return true;
+    }
+    if (typeof candidate.error?.message === "string" && /rate limit/i.test(candidate.error.message)) {
+      return true;
+    }
+    return false;
+  }
+
+  const candidate = error as Error & {
+    status?: number;
+    code?: string;
+    error?: { code?: string; message?: string };
+  };
+
+  return (
+    candidate.status === 429 ||
+    candidate.code === "rate_limit_exceeded" ||
+    candidate.error?.code === "rate_limit_exceeded" ||
+    /rate limit/i.test(candidate.message) ||
+    /rate limit/i.test(candidate.error?.message ?? "")
+  );
+}
+
 function getClient(config: CommitCoachConfig): OpenAI {
   const apiKey = config.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey && config.provider !== "ollama") {
+  if (!hasConfiguredApiKey(config)) {
     throw new Error("API key is missing. Run 'ccm config:set apiKey <key>' or set the OPENAI_API_KEY environment variable.");
   }
 
