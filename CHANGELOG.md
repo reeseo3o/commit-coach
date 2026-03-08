@@ -1,5 +1,11 @@
 # @lizzy_o3o/commit-coach
 
+## 0.3.0
+
+### Minor Changes
+
+- 98b1f39: Improve the `ccm init` setup flow with interactive select prompts powered by `@inquirer/prompts`. This makes first-time configuration easier to navigate and reduces input mistakes when choosing scope, provider, model, and language.
+
 ## 0.2.0
 
 ### Minor Changes

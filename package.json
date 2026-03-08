@@ -1,6 +1,6 @@
 {
   "name": "@lizzy_o3o/commit-coach",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI-powered CLI for commit and PR message coaching",
   "type": "module",
   "main": "dist/cli.js",
