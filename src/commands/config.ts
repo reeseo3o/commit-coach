@@ -3,7 +3,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { initConfig, setConfigValue, supportedConfigKeys, PROVIDER_PRESETS } from "../core/config.js";
 import type { CommitCoachConfig } from "../core/types.js";
-import { listModels } from "../core/llm.js";
+import { isRateLimitError, listModels } from "../core/llm.js";
 import { showBrand } from "../ui/brand.js";
 
 interface ConfigCommandOptions {
@@ -86,9 +86,19 @@ async function askModelFromProvider(
     });
 
     return selected === "__manual__" ? await input({ message: "Model name", default: defaultModel }) : selected;
-  } catch {
+  } catch (error) {
     spinner.stop();
-    console.log(chalk.yellow("Could not fetch models. Showing recommended model choices."));
+    const hasApiKey = Boolean((partialConfig.apiKey ?? process.env.OPENAI_API_KEY)?.trim());
+    const provider = partialConfig.provider ?? "openai";
+
+    if (provider !== "ollama" && !hasApiKey) {
+      console.log(chalk.yellow("Model fetch skipped: API key is missing for this provider. Showing recommended model choices."));
+    } else if (isRateLimitError(error)) {
+      console.log(chalk.yellow("Model fetch failed due to rate limit. Showing recommended model choices."));
+    } else {
+      console.log(chalk.yellow("Could not fetch models from provider. Showing recommended model choices."));
+    }
+
     const fallbackModels = getFallbackModels(partialConfig.provider, defaultModel);
     return await selectModelWithManualOption(fallbackModels, defaultModel);
   }

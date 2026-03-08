@@ -631,6 +631,44 @@ function buildCommitBodies(
   ];
 }
 
+const COMMIT_SUBJECT_PREFIX = /^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)(\([^\)]+\))?:\s+/i;
+const META_FEEDBACK_WORDS = /(추천(?:되는)?|커밋\s*메시지|퀄리티|quality|recommended\s+commit|message\s+quality)/i;
+const ACTION_WORDS = /(업데이트|개선|수정|정리|추가|제거|반영|update|improve|fix|add|remove|refactor)/i;
+
+function normalizeCommitSubject(
+  subject: string,
+  fallbackSubject: string,
+  maxSubjectLength: number,
+  language: CommitCoachConfig["language"]
+): string {
+  const trimmed = subject.replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return fallbackSubject.slice(0, maxSubjectLength);
+  }
+
+  const withoutNewlineArtifacts = trimmed.replace(/[\r\n\t]+/g, " ").trim();
+  const [headSegment] = withoutNewlineArtifacts.split("/");
+  const hasMetaFeedback = META_FEEDBACK_WORDS.test(withoutNewlineArtifacts);
+  const candidate = hasMetaFeedback && headSegment ? headSegment.trim() : withoutNewlineArtifacts;
+
+  if (!COMMIT_SUBJECT_PREFIX.test(candidate)) {
+    return fallbackSubject.slice(0, maxSubjectLength);
+  }
+
+  const content = candidate.replace(COMMIT_SUBJECT_PREFIX, "").trim();
+  if (content.length < 6 || META_FEEDBACK_WORDS.test(content)) {
+    return fallbackSubject.slice(0, maxSubjectLength);
+  }
+
+  const englishWords = content.match(/\b[a-z]{2,}\b/gi) ?? [];
+  const hasKorean = /[가-힣]/.test(content);
+  if (hasKorean && englishWords.length >= 3 && !ACTION_WORDS.test(content)) {
+    return fallbackSubject.slice(0, maxSubjectLength);
+  }
+
+  return candidate.slice(0, maxSubjectLength);
+}
+
 export function buildHeuristicCommitSuggestions(
   files: string[],
   diff: string,
@@ -670,10 +708,15 @@ export function buildHeuristicCommitSuggestions(
       subject: thirdSubject,
       body: thirdBody
     }
-  ].map((item) => ({
-    ...item,
-    subject: item.subject.slice(0, config.maxSubjectLength)
-  }));
+  ].map((item) => {
+    const fallbackSubject =
+      config.language === "ko" ? `${type}${suffix}: ${focus} 변경사항 정리` : `${type}${suffix}: refine ${focus} changes`;
+
+    return {
+      ...item,
+      subject: normalizeCommitSubject(item.subject, fallbackSubject, config.maxSubjectLength, config.language)
+    };
+  });
 }
 
 export function buildHeuristicPrSuggestion(
@@ -822,7 +865,20 @@ export async function requestCommitSuggestions(
     throw new Error("LLM에서 유효한 커밋 후보를 받지 못했습니다.");
   }
 
-  return parsed.candidates.slice(0, 3);
+  const fallbackSuggestions = buildHeuristicCommitSuggestions([], "", config);
+  const normalizedCandidates = parsed.candidates.slice(0, 3).map((candidate, index) => {
+    const fallbackSubject = fallbackSuggestions[index]?.subject ?? fallbackSuggestions[0]?.subject ?? "chore: refine changes";
+    return {
+      ...candidate,
+      subject: normalizeCommitSubject(candidate.subject, fallbackSubject, config.maxSubjectLength, config.language)
+    };
+  });
+
+  if (normalizedCandidates.every((candidate) => candidate.subject.length === 0)) {
+    throw new Error("LLM에서 유효한 커밋 후보를 받지 못했습니다.");
+  }
+
+  return normalizedCandidates;
 }
 
 export async function requestPrSuggestion(

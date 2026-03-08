@@ -264,3 +264,19 @@ test("isRateLimitError detects status 429 and rate limit codes", () => {
   assert.equal(isRateLimitError(new Error("Rate limit reached")), true);
   assert.equal(isRateLimitError(new Error("Network failure")), false);
 });
+
+test("buildHeuristicCommitSuggestions filters meta feedback words from subject", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "+const imageSrc = '/hero.png';",
+    "+const backdrop = true;",
+    "+const recommendedCommitQuality = '추천되는 커밋 메시지 퀄리티';"
+  ].join("\n");
+
+  const suggestions = buildHeuristicCommitSuggestions(["src/app/page.tsx"], diff, koConfig);
+
+  assert.doesNotMatch(suggestions[0].subject, /추천되는|커밋 메시지|퀄리티|quality/i);
+  assert.match(suggestions[0].subject, /^feat:/);
+});
