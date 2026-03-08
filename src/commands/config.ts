@@ -3,7 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import chalk from "chalk";
 import ora from "ora";
 import { initConfig, setConfigValue, supportedConfigKeys } from "../core/config.js";
-import type { BrandTheme, CommitCoachConfig, MascotStyle } from "../core/types.js";
+import type { CommitCoachConfig } from "../core/types.js";
 import { showBrand } from "../ui/brand.js";
 
 interface ConfigCommandOptions {
@@ -40,8 +40,7 @@ async function runInitWizard(): Promise<{ global: boolean; values: Partial<Commi
     console.log(chalk.dim("Options:"));
     console.log(chalk.dim("- scope: l(local) / g(global)"));
     console.log(chalk.dim("- language: ko / en"));
-    console.log(chalk.dim("- theme: ocean / sunset / forest\n"));
-    console.log(chalk.dim("- mascot: cat / none\n"));
+    console.log(chalk.dim("- API key: OpenAI API key (Enter to skip)\n"));
 
     const scopeAnswer = await askChoice(rl, "Save config where? [l/g]", ["l", "g"], "l");
     const global = scopeAnswer === "g" || scopeAnswer === "global";
@@ -49,31 +48,19 @@ async function runInitWizard(): Promise<{ global: boolean; values: Partial<Commi
     const languageAnswer = await askChoice(rl, "Default language? [ko/en]", ["ko", "en"], "ko");
     const language = languageAnswer === "en" ? "en" : "ko";
 
-    const themeAnswer = await askChoice(
-      rl,
-      "Brand theme? [ocean/sunset/forest]",
-      ["ocean", "sunset", "forest"],
-      "ocean"
-    );
-    const brandTheme: BrandTheme =
-      themeAnswer === "sunset" || themeAnswer === "forest" || themeAnswer === "ocean" ? themeAnswer : "ocean";
-
-    const mascotAnswer = await askChoice(rl, "Mascot style? [cat/none]", ["cat", "none"], "cat");
-    const mascotStyle: MascotStyle = mascotAnswer === "none" ? "none" : "cat";
+    const apiKeyAnswer = (await rl.question("OpenAI API key (Enter to skip): ")).trim();
 
     console.log("");
     console.log(chalk.dim("Summary"));
     console.log(chalk.dim(`- scope: ${global ? "global" : "local"}`));
     console.log(chalk.dim(`- language: ${language}`));
-    console.log(chalk.dim(`- theme: ${brandTheme}`));
-    console.log(chalk.dim(`- mascot: ${mascotStyle}\n`));
+    console.log(chalk.dim(`- API key: ${apiKeyAnswer ? "configured" : "skipped"}\n`));
 
     return {
       global,
       values: {
         language,
-        brandTheme,
-        mascotStyle
+        ...(apiKeyAnswer ? { apiKey: apiKeyAnswer } : {})
       }
     };
   } finally {
