@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { runMsgCommand } from "./commands/msg.js";
 import { runPrCommand } from "./commands/pr.js";
+import chalk from "chalk";
 import { runConfigInitCommand, runConfigSetCommand } from "./commands/config.js";
 import { runHookInstallCommand } from "./commands/hook.js";
 import { hasAnyUserConfig } from "./core/config.js";
@@ -26,20 +27,18 @@ program.hook("preAction", async (thisCommand) => {
   const commandName = thisCommand.name();
   const skipOnboarding = process.env.COMMIT_COACH_SKIP_ONBOARDING === "1";
   const isHelpInvocation = process.argv.includes("-h") || process.argv.includes("--help");
-  const onboardingCommands = new Set(["msg", "pr"]);
+  const needsConfig = new Set(["msg", "pr"]);
 
-  if (!onboardingCommands.has(commandName) || skipOnboarding || isHelpInvocation) {
+  if (!needsConfig.has(commandName) || skipOnboarding || isHelpInvocation) {
     return;
   }
 
   const hasUserConfig = await hasAnyUserConfig(process.cwd());
-  if (hasUserConfig) {
-    return;
-  }
-
-  const interactive = process.stdin.isTTY && process.stdout.isTTY && !process.env.CI;
-  if (interactive) {
-    await runConfigInitCommand({});
+  if (!hasUserConfig) {
+    console.log(chalk.yellow("설정이 없습니다. 먼저 'ccm init'을 실행해주세요."));
+    console.log(chalk.dim("  $ ccm init\n"));
+    process.exitCode = 1;
+    process.exit();
   }
 });
 
@@ -61,8 +60,15 @@ program
   .action(runPrCommand);
 
 program
+  .command("init")
+  .description("Run first-time setup wizard")
+  .option("-g, --global", "Use global config file (~/.commit-coach.json)")
+  .option("--defaults", "Skip interactive setup and use defaults")
+  .action(runConfigInitCommand);
+
+program
   .command("config:init")
-  .description("Create default .commit-coach.json")
+  .description("Create default .commit-coach.json (alias: init)")
   .option("-g, --global", "Use global config file (~/.commit-coach.json)")
   .option("--defaults", "Skip interactive setup and use defaults")
   .action(runConfigInitCommand);
