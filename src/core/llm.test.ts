@@ -100,15 +100,142 @@ test("buildHeuristicCommitSuggestions does not infer Next.js reason from app pat
 });
 
 test("buildHeuristicPrSuggestion includes branch and file count", () => {
-  const suggestion = buildHeuristicPrSuggestion("feat/test", "main", ["a.ts", "b.ts"], config);
+  const suggestion = buildHeuristicPrSuggestion(
+    "feat/test",
+    "main",
+    ["src/app/page.tsx", "src/components/Hero.tsx"],
+    ["abc123 feat: update page", "def456 refactor: clean hero"],
+    "+export const metadata = {}",
+    config
+  );
   assert.equal(suggestion.title, "[feat/test] update 2 files against main");
   assert.match(suggestion.body, /## Summary/);
+  assert.match(suggestion.body, /## Changed Files/);
+  assert.match(suggestion.body, /## Commits/);
   assert.match(suggestion.body, /## Testing/);
 });
 
 test("buildHeuristicPrSuggestion returns Korean copy when language is ko", () => {
-  const suggestion = buildHeuristicPrSuggestion("feat/test", "main", ["a.ts", "b.ts"], koConfig);
+  const suggestion = buildHeuristicPrSuggestion(
+    "feat/test",
+    "main",
+    ["src/app/page.tsx", "src/components/Hero.tsx"],
+    ["abc123 feat: update page", "def456 refactor: clean hero"],
+    "+export const metadata = {}",
+    koConfig
+  );
   assert.match(suggestion.title, /main 대비 2개 파일 변경/);
   assert.match(suggestion.body, /## 요약/);
+  assert.match(suggestion.body, /## 변경 파일/);
+  assert.match(suggestion.body, /## 커밋/);
   assert.match(suggestion.body, /## 테스트/);
+});
+
+test("buildHeuristicPrSuggestion includes file-level concrete details", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "-<ContentRow title=\"Trending\" />",
+    "+const footerText = 'Updated footer copy';"
+  ].join("\n");
+
+  const suggestion = buildHeuristicPrSuggestion(
+    "fix/pr-detail",
+    "main",
+    ["src/app/page.tsx"],
+    ["abc123 refactor: remove unused content row"],
+    diff,
+    config
+  );
+
+  assert.match(suggestion.body, /src\/app\/page\.tsx: remove ContentRow, update footerText text/);
+});
+
+test("buildHeuristicPrSuggestion falls back to numeric diff line summary", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "+}"
+  ].join("\n");
+
+  const suggestion = buildHeuristicPrSuggestion(
+    "fix/pr-detail",
+    "main",
+    ["src/app/page.tsx"],
+    ["abc123 chore: tiny update"],
+    diff,
+    config
+  );
+
+  assert.match(suggestion.body, /Included change: `chore: tiny update`\./);
+  assert.match(suggestion.body, /Applied diff with \+1\/-0 line changes\./);
+});
+
+test("buildHeuristicPrSuggestion includes Korean file-level details", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "-<ContentRow title=\"Trending\" />",
+    "+const footerText = 'Updated footer copy';"
+  ].join("\n");
+
+  const suggestion = buildHeuristicPrSuggestion(
+    "fix/pr-detail",
+    "main",
+    ["src/app/page.tsx"],
+    ["abc123 refactor: remove unused content row"],
+    diff,
+    koConfig
+  );
+
+  assert.match(suggestion.body, /src\/app\/page\.tsx: ContentRow 제거, footerText 텍스트 변경/);
+});
+
+test("buildHeuristicPrSuggestion derives Korean file-level details from commit subject when diff is sparse", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "+const footerText = 'Updated';"
+  ].join("\n");
+
+  const suggestion = buildHeuristicPrSuggestion(
+    "fix/pr-detail",
+    "main",
+    ["src/app/page.tsx"],
+    ["abc123 refactor: Remove unused ContentRow components and update footer text"],
+    diff,
+    koConfig
+  );
+
+  assert.match(suggestion.body, /src\/app\/page\.tsx:/);
+  assert.match(suggestion.body, /ContentRow 제거/);
+  assert.match(suggestion.body, /footer 텍스트 변경/);
+});
+
+test("buildHeuristicPrSuggestion keeps file-level detail order and caps points", () => {
+  const diff = [
+    "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+    "--- a/src/app/page.tsx",
+    "+++ b/src/app/page.tsx",
+    "-<ContentRow title=\"Trending\" />",
+    "+const footerText = 'Updated footer';",
+    "+const heroTitle = 'Hero';",
+    "+export const metadata = {}"
+  ].join("\n");
+
+  const suggestion = buildHeuristicPrSuggestion(
+    "fix/pr-detail",
+    "main",
+    ["src/app/page.tsx"],
+    ["abc123 refactor: Remove unused ContentRow components and update footer text"],
+    diff,
+    koConfig
+  );
+
+  assert.match(suggestion.body, /src\/app\/page\.tsx: ContentRow 제거, footerText 텍스트 변경, heroTitle 값 변경/);
+  assert.doesNotMatch(suggestion.body, /metadata 구성 변경/);
 });

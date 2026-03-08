@@ -17,6 +17,7 @@ AI-powered CLI for generating high-signal commit messages and pull request summa
 
 - `msg`: generate one recommended commit message from staged changes.
 - `pr`: generate PR title/body from branch diff.
+- File-level PR highlights (for example: `src/app/page.tsx: ContentRow 제거, footer 텍스트 변경`).
 - Interactive first-run setup wizard (`config:init`).
 - Theme + mascot customization for setup UX.
 - Global and local configuration support.
@@ -80,6 +81,20 @@ Generate PR title/body from branch changes against a base branch.
 ccm pr --base main
 ccm pr --lang en
 ccm pr --verbose
+```
+
+`변경 요약` / `Change Highlights` are generated with these rules:
+
+- File-level summary format: `<path>: <detail1>, <detail2>, ...`
+- Detail order is deterministic: **remove -> modify -> add**
+- Max 3 detail points per file (to keep output readable)
+- If diff detail is sparse, commit subject is used as a fallback signal
+
+Example:
+
+```text
+## 변경 요약
+- src/app/page.tsx: ContentRow 제거, footer 텍스트 변경
 ```
 
 ### `config:init`

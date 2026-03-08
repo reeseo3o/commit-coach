@@ -5,10 +5,15 @@ import type { CommitCoachConfig, CommitSuggestion, PullRequestSuggestion } from 
 interface HeuristicPrCopy {
   title: (branch: string, fileCount: number, base: string) => string;
   summaryHeading: string;
-  summaryLine1: string;
-  summaryLine2: (fileCount: number) => string;
+  summaryLine1: (reason: string) => string;
+  summaryLine2: (area: string) => string;
+  summaryLine3: (fileCount: number) => string;
+  highlightsHeading: string;
+  changesHeading: string;
+  commitsHeading: string;
   testingHeading: string;
-  testingLine: string;
+  testingLine1: string;
+  testingLine2: string;
 }
 
 interface ReasonHint {
@@ -27,20 +32,30 @@ function getHeuristicPrCopy(language: CommitCoachConfig["language"]): HeuristicP
     return {
       title: (branch, fileCount, base) => `[${branch}] ${base} 대비 ${fileCount}개 파일 변경`,
       summaryHeading: "## 요약",
-      summaryLine1: "- 브랜치 diff를 기반으로 구현 변경 사항을 반영했습니다.",
-      summaryLine2: (fileCount) => `- 핵심 변경 파일 ${fileCount}개를 업데이트했습니다.`,
+      summaryLine1: (reason) => `- ${reason} 관련 핵심 수정 사항을 반영했습니다.`,
+      summaryLine2: (area) => `- 주요 변경 영역: ${area}`,
+      summaryLine3: (fileCount) => `- 총 변경 파일: ${fileCount}개`,
+      highlightsHeading: "## 변경 요약",
+      changesHeading: "## 변경 파일",
+      commitsHeading: "## 커밋",
       testingHeading: "## 테스트",
-      testingLine: "- 병합 전에 프로젝트 검증을 로컬에서 실행하세요."
+      testingLine1: "npm run test",
+      testingLine2: "npm run typecheck && npm run build"
     };
   }
 
   return {
     title: (branch, fileCount, base) => `[${branch}] update ${fileCount} files against ${base}`,
     summaryHeading: "## Summary",
-    summaryLine1: "- Update implementation based on branch diff.",
-    summaryLine2: (fileCount) => `- Touch ${fileCount} files with focused changes.`,
+    summaryLine1: (reason) => `- Apply focused updates related to ${reason}.`,
+    summaryLine2: (area) => `- Primary change area: ${area}.`,
+    summaryLine3: (fileCount) => `- Total changed files: ${fileCount}.`,
+    highlightsHeading: "## Change Highlights",
+    changesHeading: "## Changed Files",
+    commitsHeading: "## Commits",
     testingHeading: "## Testing",
-    testingLine: "- Run project checks locally before merge."
+    testingLine1: "npm run test",
+    testingLine2: "npm run typecheck && npm run build"
   };
 }
 
@@ -125,6 +140,347 @@ function getFocus(files: string[], language: CommitCoachConfig["language"]): str
   return language === "ko"
     ? `${first} 외 ${focusFiles.length - 1}개 파일`
     : `${first} and ${focusFiles.length - 1} more files`;
+}
+
+function inferPrimaryArea(files: string[], language: CommitCoachConfig["language"]): string {
+  const lower = files.join(" ").toLowerCase();
+
+  if (/src\/app|app\//.test(lower)) {
+    return language === "ko" ? "앱 라우팅/페이지" : "app routing/pages";
+  }
+  if (/src\/components|components\//.test(lower)) {
+    return language === "ko" ? "UI 컴포넌트" : "UI components";
+  }
+  if (/src\/lib|lib\//.test(lower)) {
+    return language === "ko" ? "도메인/비즈니스 로직" : "domain/business logic";
+  }
+  if (/test|spec|e2e/.test(lower)) {
+    return language === "ko" ? "테스트 코드" : "tests";
+  }
+
+  return language === "ko" ? "전반적인 기능 영역" : "general feature area";
+}
+
+function toBulletList(items: string[], fallback: string): string[] {
+  if (items.length === 0) {
+    return [`- ${fallback}`];
+  }
+
+  return items.map((item) => `- ${item}`);
+}
+
+function toShortLiteral(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 36) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 33)}...`;
+}
+
+function extractChangeHighlights(diff: string, language: CommitCoachConfig["language"]): string[] {
+  const highlights: string[] = [];
+  const added = diff
+    .split("\n")
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++ "))
+    .map((line) => line.slice(1).trim())
+    .filter((line) => line.length > 0);
+
+  const removed = diff
+    .split("\n")
+    .filter((line) => line.startsWith("-") && !line.startsWith("--- "))
+    .map((line) => line.slice(1).trim())
+    .filter((line) => line.length > 0);
+
+  type HighlightSource = "add" | "remove";
+  interface HighlightPattern {
+    regex: RegExp;
+    source?: HighlightSource;
+    ko: (match: RegExpMatchArray, source: HighlightSource) => string;
+    en: (match: RegExpMatchArray, source: HighlightSource) => string;
+  }
+
+  const patterns: HighlightPattern[] = [
+    {
+      regex: /^export const metadata\s*=\s*(.+)$/,
+      source: "add",
+      ko: () => "metadata export 구성을 업데이트했습니다.",
+      en: () => "Updated metadata export configuration."
+    },
+    {
+      regex: /^const\s+([A-Za-z0-9_]+)\s*=\s*["'`]([^"'`]+)["'`]/,
+      source: "add",
+      ko: (match) => `\`${match[1]}\` 값을 \`${toShortLiteral(match[2])}\`(으)로 업데이트했습니다.`,
+      en: (match) => `Updated \`${match[1]}\` value to \`${toShortLiteral(match[2])}\`.`
+    },
+    {
+      regex: /^([A-Za-z0-9_.]+)\s*=\s*["'`]([^"'`]+)["'`];?$/,
+      source: "add",
+      ko: (match) => `\`${match[1]}\` 값을 \`${toShortLiteral(match[2])}\`(으)로 설정했습니다.`,
+      en: (match) => `Set \`${match[1]}\` to \`${toShortLiteral(match[2])}\`.`
+    },
+    {
+      regex: /^const\s+([A-Za-z0-9_]+)\s*=.+$/,
+      source: "add",
+      ko: (match) => `\`${match[1]}\` 상수 선언/동작을 추가 또는 수정했습니다.`,
+      en: (match) => `Added or updated \`${match[1]}\` constant behavior.`
+    },
+    {
+      regex: /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(/,
+      source: "add",
+      ko: (match) => `\`${match[1]}\` 함수 구현을 추가 또는 갱신했습니다.`,
+      en: (match) => `Added or updated \`${match[1]}\` function implementation.`
+    },
+    {
+      regex: /<([A-Z][A-Za-z0-9]+)(\s|>)/,
+      source: "remove",
+      ko: (match) => `\`${match[1]}\` 컴포넌트 렌더링을 제거했습니다.`,
+      en: (match) => `Removed \`${match[1]}\` component rendering.`
+    },
+    {
+      regex: /^const\s+([A-Za-z0-9_]+)\s*=.+$/,
+      source: "remove",
+      ko: (match) => `\`${match[1]}\` 상수 선언을 제거했습니다.`,
+      en: (match) => `Removed \`${match[1]}\` constant declaration.`
+    },
+    {
+      regex: /^import\s+.+\s+from\s+['\"](.+)['\"];?$/,
+      source: "add",
+      ko: (match) => `\`${match[1]}\` import 의존성을 추가 또는 교체했습니다.`,
+      en: (match) => `Added or replaced import dependency \`${match[1]}\`.`
+    }
+  ];
+
+  const candidates: Array<{ line: string; source: HighlightSource }> = [
+    ...removed.map((line) => ({ line, source: "remove" as const })),
+    ...added.map((line) => ({ line, source: "add" as const }))
+  ];
+
+  for (const candidate of candidates) {
+    for (const pattern of patterns) {
+      if (pattern.source && pattern.source !== candidate.source) {
+        continue;
+      }
+
+      const match = candidate.line.match(pattern.regex);
+      if (!match) {
+        continue;
+      }
+
+      const message = language === "ko" ? pattern.ko(match, candidate.source) : pattern.en(match, candidate.source);
+      if (!highlights.includes(message)) {
+        highlights.push(message);
+      }
+      break;
+    }
+
+    if (highlights.length >= 4) {
+      break;
+    }
+  }
+
+  if (highlights.length > 0) {
+    return highlights;
+  }
+
+  return [
+    language === "ko"
+      ? `총 +${added.length}/-${removed.length} 라인 변경을 반영했습니다.`
+      : `Applied diff with +${added.length}/-${removed.length} line changes.`
+  ];
+}
+
+function isNumericDiffFallback(highlights: string[]): boolean {
+  if (highlights.length !== 1) {
+    return false;
+  }
+
+  return /^(총 \+\d+\/-\d+ 라인 변경을 반영했습니다\.|Applied diff with \+\d+\/-\d+ line changes\.)$/.test(highlights[0]);
+}
+
+function extractCommitSubjects(commits: string[]): string[] {
+  return commits
+    .filter((commit) => !/^\w+\s+Merge\s+/i.test(commit))
+    .map((commit) => commit.replace(/^\w+\s+/, "").trim())
+    .filter((subject) => subject.length > 0);
+}
+
+function buildCommitHighlights(subjects: string[], language: CommitCoachConfig["language"]): string[] {
+  if (language === "ko") {
+    return subjects.slice(0, 2).map((subject) => `\`${subject}\` 변경을 반영했습니다.`);
+  }
+
+  return subjects.slice(0, 2).map((subject) => `Included change: \`${subject}\`.`);
+}
+
+interface FileDiffChunk {
+  file: string;
+  addedLines: string[];
+  removedLines: string[];
+}
+
+const MAX_FILE_HIGHLIGHT_DETAILS = 3;
+
+function parseDiffByFile(diff: string, files: string[]): FileDiffChunk[] {
+  const lines = diff.split("\n");
+  const chunks: FileDiffChunk[] = [];
+  let current: FileDiffChunk | undefined;
+
+  const pushCurrent = () => {
+    if (!current) {
+      return;
+    }
+
+    chunks.push(current);
+  };
+
+  for (const rawLine of lines) {
+    const diffHeader = rawLine.match(/^diff --git a\/(.+) b\/(.+)$/);
+    if (diffHeader) {
+      pushCurrent();
+      current = {
+        file: diffHeader[2],
+        addedLines: [],
+        removedLines: []
+      };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    if (rawLine.startsWith("+") && !rawLine.startsWith("+++ ")) {
+      current.addedLines.push(rawLine.slice(1).trim());
+    }
+
+    if (rawLine.startsWith("-") && !rawLine.startsWith("--- ")) {
+      current.removedLines.push(rawLine.slice(1).trim());
+    }
+  }
+
+  pushCurrent();
+
+  if (chunks.length > 0) {
+    return chunks;
+  }
+
+  const signals = collectDiffSignals(diff);
+  const fallbackFile = files[0] ?? "changed-file";
+  return [
+    {
+      file: fallbackFile,
+      addedLines: signals.addedLines.map((line) => line.trim()).filter((line) => line.length > 0),
+      removedLines: signals.removedLines.map((line) => line.trim()).filter((line) => line.length > 0)
+    }
+  ];
+}
+
+function uniquePush(target: string[], value: string): void {
+  if (!target.includes(value)) {
+    target.push(value);
+  }
+}
+
+function describeFileChanges(chunk: FileDiffChunk, language: CommitCoachConfig["language"]): string[] {
+  const removedDetails: string[] = [];
+  const modifiedDetails: string[] = [];
+  const addedDetails: string[] = [];
+
+  const removedComponents = new Set<string>();
+  for (const line of chunk.removedLines) {
+    const match = line.match(/<([A-Z][A-Za-z0-9]+)(\s|>|\/)/);
+    if (match) {
+      removedComponents.add(match[1]);
+    }
+  }
+
+  for (const name of [...removedComponents].slice(0, 2)) {
+    uniquePush(removedDetails, language === "ko" ? `${name} 제거` : `remove ${name}`);
+  }
+
+  const changedLiterals = new Set<string>();
+  for (const line of chunk.addedLines) {
+    const literalMatch =
+      line.match(/^const\s+([A-Za-z0-9_]+)\s*=\s*["'`]([^"'`]+)["'`]/) ??
+      line.match(/^([A-Za-z0-9_.]+)\s*=\s*["'`]([^"'`]+)["'`];?$/);
+    if (literalMatch) {
+      changedLiterals.add(literalMatch[1]);
+    }
+  }
+
+  for (const variableName of [...changedLiterals].slice(0, 2)) {
+    if (/text$/i.test(variableName)) {
+      uniquePush(modifiedDetails, language === "ko" ? `${variableName} 텍스트 변경` : `update ${variableName} text`);
+      continue;
+    }
+
+    uniquePush(modifiedDetails, language === "ko" ? `${variableName} 값 변경` : `update ${variableName} value`);
+  }
+
+  const hasMetadataUpdate = chunk.addedLines.some((line) => /^export const metadata\b/.test(line));
+  if (hasMetadataUpdate) {
+    uniquePush(addedDetails, language === "ko" ? "metadata 구성 변경" : "update metadata config");
+  }
+
+  const details = [...removedDetails, ...modifiedDetails, ...addedDetails];
+  return details.slice(0, MAX_FILE_HIGHLIGHT_DETAILS);
+}
+
+function extractDetailsFromCommitSubject(subject: string, language: CommitCoachConfig["language"]): string[] {
+  const details: string[] = [];
+
+  const removeComponentMatch = subject.match(/remove\s+unused\s+([A-Za-z0-9_]+)\s+components?/i);
+  if (removeComponentMatch) {
+    uniquePush(details, language === "ko" ? `${removeComponentMatch[1]} 제거` : `remove ${removeComponentMatch[1]}`);
+  }
+
+  const updateTextMatch = subject.match(/update\s+([A-Za-z0-9_]+)\s+text/i);
+  if (updateTextMatch) {
+    uniquePush(details, language === "ko" ? `${updateTextMatch[1]} 텍스트 변경` : `update ${updateTextMatch[1]} text`);
+  }
+
+  return details;
+}
+
+function extractFileLevelHighlights(
+  diff: string,
+  files: string[],
+  commitSubjects: string[],
+  language: CommitCoachConfig["language"]
+): string[] {
+  const chunks = parseDiffByFile(diff, files);
+  const highlights: string[] = [];
+  const commitDetails = commitSubjects.length > 0 ? extractDetailsFromCommitSubject(commitSubjects[0], language) : [];
+
+  for (const chunk of chunks) {
+    const details = describeFileChanges(chunk, language);
+    if (files.length === 1 && details.length < 2 && commitDetails.length > 0) {
+      for (const detail of commitDetails) {
+        uniquePush(details, detail);
+        if (details.length >= MAX_FILE_HIGHLIGHT_DETAILS) {
+          break;
+        }
+      }
+    }
+
+    if (details.length === 0) {
+      continue;
+    }
+
+    highlights.push(`${chunk.file}: ${details.slice(0, MAX_FILE_HIGHLIGHT_DETAILS).join(", ")}`);
+    if (highlights.length >= 4) {
+      break;
+    }
+  }
+
+  if (highlights.length === 0 && files.length === 1 && commitDetails.length > 0) {
+    if (commitDetails.length > 0) {
+      highlights.push(`${files[0]}: ${commitDetails.slice(0, MAX_FILE_HIGHLIGHT_DETAILS).join(", ")}`);
+    }
+  }
+
+  return highlights;
 }
 
 const reasonHints: ReasonHint[] = [
@@ -324,19 +680,59 @@ export function buildHeuristicPrSuggestion(
   branch: string,
   base: string,
   files: string[],
+  commits: string[],
+  diff: string,
   config: CommitCoachConfig
 ): PullRequestSuggestion {
   const copy = getHeuristicPrCopy(config.language);
+  const area = inferPrimaryArea(files, config.language);
+  const signals = collectDiffSignals(diff);
+  const reasonSource = [...signals.addedLines, ...signals.removedLines].join("\n");
+  const reason = getReason(reasonSource, config.language);
+
+  const fileBullets = toBulletList(
+    files.slice(0, 6).map((file) => `\`${file}\``),
+    config.language === "ko" ? "변경 파일 없음" : "No changed files"
+  );
+
+  const nonMergeCommits = commits.filter((commit) => !/^\w+\s+Merge\s+/i.test(commit));
+  const commitSubjects = extractCommitSubjects(commits);
+  const commitBullets = toBulletList(
+    nonMergeCommits.slice(0, 5),
+    config.language === "ko" ? "커밋 정보 없음" : "No commit entries"
+  );
+
+  const fileLevelHighlights = extractFileLevelHighlights(diff, files, commitSubjects, config.language);
+  const diffHighlights = extractChangeHighlights(diff, config.language);
+  const highlights =
+    fileLevelHighlights.length > 0
+      ? fileLevelHighlights
+      : isNumericDiffFallback(diffHighlights)
+        ? [...buildCommitHighlights(commitSubjects, config.language), ...diffHighlights]
+        : diffHighlights;
+
+  const highlightBullets = toBulletList(highlights, config.language === "ko" ? "핵심 변경 요약 없음" : "No highlight items");
 
   return {
     title: copy.title(branch, files.length, base),
     body: [
       copy.summaryHeading,
-      copy.summaryLine1,
-      copy.summaryLine2(files.length),
+      copy.summaryLine1(reason),
+      copy.summaryLine2(area),
+      copy.summaryLine3(files.length),
+      "",
+      copy.highlightsHeading,
+      ...highlightBullets,
+      "",
+      copy.changesHeading,
+      ...fileBullets,
+      "",
+      copy.commitsHeading,
+      ...commitBullets,
       "",
       copy.testingHeading,
-      copy.testingLine
+      `- ${copy.testingLine1}`,
+      `- ${copy.testingLine2}`
     ].join("\n")
   };
 }

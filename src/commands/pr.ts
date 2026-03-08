@@ -36,7 +36,14 @@ export async function runPrCommand(options: PrOptions): Promise<void> {
       diff: context.diff
     });
 
-    let suggestion = buildHeuristicPrSuggestion(context.branch, base, context.files, mergedConfig);
+    let suggestion = buildHeuristicPrSuggestion(
+      context.branch,
+      base,
+      context.files,
+      context.commits,
+      context.diff,
+      mergedConfig
+    );
     let source: "ai" | "heuristic" = "heuristic";
 
     try {
