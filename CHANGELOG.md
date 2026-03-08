@@ -1,5 +1,11 @@
 # @lizzy_o3o/commit-coach
 
+## 0.3.3
+
+### Patch Changes
+
+- ba7128c: Improve commit suggestion quality by tightening prompt guidance, rejecting vague AI-generated subjects, and preserving real diff context when normalizing AI candidates. This reduces generic outputs like "핵심 동작 개선" and keeps suggestions aligned with staged changes.
+
 ## 0.3.2
 
 ### Patch Changes
