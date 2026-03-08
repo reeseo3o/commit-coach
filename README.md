@@ -6,6 +6,8 @@ AI-powered CLI for generating high-signal commit messages and pull request summa
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18.0.0-339933)](https://nodejs.org/)
 
+<img width="796" height="369" alt="image" src="https://github.com/user-attachments/assets/44d47393-dfa7-456d-99ac-46fd9789cf90" />
+
 ## Why commit-coach?
 
 - Keeps commit messages consistent without forcing templates.
