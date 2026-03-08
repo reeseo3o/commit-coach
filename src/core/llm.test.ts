@@ -280,3 +280,19 @@ test("buildHeuristicCommitSuggestions filters meta feedback words from subject",
   assert.doesNotMatch(suggestions[0].subject, /추천되는|커밋 메시지|퀄리티|quality/i);
   assert.match(suggestions[0].subject, /^feat:/);
 });
+
+test("buildHeuristicCommitSuggestions marks removed JSX priority prop as refactor with concrete token", () => {
+  const diff = [
+    "diff --git a/src/components/Hero.tsx b/src/components/Hero.tsx",
+    "--- a/src/components/Hero.tsx",
+    "+++ b/src/components/Hero.tsx",
+    "-      <Image src={heroImage} alt=\"hero\" priority />",
+    "+      <Image src={heroImage} alt=\"hero\" />"
+  ].join("\n");
+
+  const suggestions = buildHeuristicCommitSuggestions(["src/components/Hero.tsx"], diff, koConfig);
+
+  assert.match(suggestions[0].subject, /^refactor:/);
+  assert.match(suggestions[0].subject, /priority/);
+  assert.doesNotMatch(suggestions[0].subject, /핵심 동작 개선/);
+});

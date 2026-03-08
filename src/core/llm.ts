@@ -101,6 +101,13 @@ function heuristicType(files: string[], diff: string, signals: DiffSignals): str
     return "refactor";
   }
 
+  const addedTerms = extractTerms(signals.addedLines);
+  const removedTerms = extractTerms(signals.removedLines);
+  const removedOnlyCount = removedTerms.filter((term) => !addedTerms.includes(term)).length;
+  if (removedOnlyCount > 0 && signals.removedLines.length >= signals.addedLines.length) {
+    return "refactor";
+  }
+
   if (signals.removedLines.length > Math.max(8, signals.addedLines.length * 1.5)) {
     return "refactor";
   }
@@ -566,8 +573,7 @@ function buildPrimarySubject(
   const removedOnly = new Set(removedTerms.filter((term) => !addedTerms.includes(term)));
   const removedFocus = topTerms(removedTerms, new Set(addedTerms), 3);
   const addedFocus = topTerms(addedTerms, new Set(), 3);
-
-  const isRemoval = signals.removedLines.length > signals.addedLines.length;
+  const isRemoval = signals.removedLines.length > signals.addedLines.length || removedOnly.size > 0;
   const isMultiFile = files.length > 1;
   const removalWords = removedFocus.length > 0 ? removedFocus.join(" ") : (language === "ko" ? "불필요 코드" : "unused code");
   const addedWords = addedFocus.length > 0 ? addedFocus.join(" ") : (language === "ko" ? "핵심 로직" : "core logic");
@@ -634,6 +640,7 @@ function buildCommitBodies(
 const COMMIT_SUBJECT_PREFIX = /^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)(\([^\)]+\))?:\s+/i;
 const META_FEEDBACK_WORDS = /(추천(?:되는)?|커밋\s*메시지|퀄리티|quality|recommended\s+commit|message\s+quality)/i;
 const ACTION_WORDS = /(업데이트|개선|수정|정리|추가|제거|반영|update|improve|fix|add|remove|refactor)/i;
+const VAGUE_SUBJECT_PATTERNS = /(핵심 동작 개선|관련 업데이트|변경사항 정리|동작 개선|improve core behavior|update .* for core behavior|refine .* changes)/i;
 
 function normalizeCommitSubject(
   subject: string,
@@ -657,6 +664,10 @@ function normalizeCommitSubject(
 
   const content = candidate.replace(COMMIT_SUBJECT_PREFIX, "").trim();
   if (content.length < 6 || META_FEEDBACK_WORDS.test(content)) {
+    return fallbackSubject.slice(0, maxSubjectLength);
+  }
+
+  if (VAGUE_SUBJECT_PATTERNS.test(content)) {
     return fallbackSubject.slice(0, maxSubjectLength);
   }
 
@@ -849,7 +860,8 @@ function getClient(config: CommitCoachConfig): OpenAI {
 
 export async function requestCommitSuggestions(
   prompt: string,
-  config: CommitCoachConfig
+  config: CommitCoachConfig,
+  fallbackCandidates?: CommitSuggestion[]
 ): Promise<CommitSuggestion[]> {
   const client = getClient(config);
   const response = await client.responses.create({
@@ -865,7 +877,10 @@ export async function requestCommitSuggestions(
     throw new Error("LLM에서 유효한 커밋 후보를 받지 못했습니다.");
   }
 
-  const fallbackSuggestions = buildHeuristicCommitSuggestions([], "", config);
+  const fallbackSuggestions =
+    fallbackCandidates && fallbackCandidates.length > 0
+      ? fallbackCandidates
+      : buildHeuristicCommitSuggestions([], "", config);
   const normalizedCandidates = parsed.candidates.slice(0, 3).map((candidate, index) => {
     const fallbackSubject = fallbackSuggestions[index]?.subject ?? fallbackSuggestions[0]?.subject ?? "chore: refine changes";
     return {

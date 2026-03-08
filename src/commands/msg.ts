@@ -66,7 +66,7 @@ export async function runMsgCommand(options: MsgOptions): Promise<void> {
     let source: "ai" | "heuristic" = "heuristic";
 
     try {
-      suggestions = await requestCommitSuggestions(prompt, mergedConfig);
+      suggestions = await requestCommitSuggestions(prompt, mergedConfig, suggestions);
       source = "ai";
     } catch (error) {
       if (isRateLimitError(error)) {

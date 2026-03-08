@@ -35,6 +35,11 @@ export function buildCommitPrompt(input: CommitPromptInput): string {
     "{\"candidates\":[{\"type\":\"feat\",\"scope\":\"api\",\"subject\":\"...\",\"body\":\"...\"}]}",
     "Create exactly 3 candidates.",
     "Do not include markdown.",
+    "Subject quality rules:",
+    "- Prefer concrete action + concrete target from diff (function, prop, component, file-level behavior).",
+    "- Avoid vague phrases like '핵심 동작 개선', '관련 업데이트', 'change set updates', or 'improve core behavior'.",
+    "- If diff mostly removes code/props, prefer type 'refactor' unless it's clearly a bug fix.",
+    "- Keep subject naturally readable for humans; never include meta comments about message quality.",
     `Changed files: ${files.join(", ") || "(none)"}`,
     "Diff:",
     trimDiff(diff)
