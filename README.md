@@ -20,8 +20,9 @@ AI-powered CLI for generating high-signal commit messages and pull request summa
 - `msg`: generate one recommended commit message from staged changes.
 - `pr`: generate PR title/body from branch diff.
 - File-level PR highlights (for example: `src/app/page.tsx: ContentRow 제거, footer 텍스트 변경`).
-- Interactive first-run setup wizard (`config:init`).
-- Theme + mascot customization for setup UX.
+- Multi-provider LLM support: OpenAI, Groq, Ollama, Gemini, DeepSeek, Mistral, OpenRouter.
+- Custom provider support via `baseURL` (any OpenAI-compatible API).
+- Interactive setup wizard (`ccm init`) with provider selection and model picker.
 - Global and local configuration support.
 - Safe non-interactive behavior for CI and automation.
 
@@ -52,13 +53,16 @@ Note: `cc` may resolve to `clang` on macOS, so prefer `ccoach` or `ccm`.
 ## Quick Start
 
 ```bash
-# 1) inside your git repository
+# 1) first-time setup
+ccm init
+
+# 2) inside your git repository
 git add .
 
-# 2) first run (starts onboarding wizard if config is missing)
+# 3) generate commit message
 ccm msg
 
-# 3) generate PR summary
+# 4) generate PR summary
 ccm pr --base main
 ```
 
@@ -99,22 +103,25 @@ Example:
 - src/app/page.tsx: ContentRow 제거, footer 텍스트 변경
 ```
 
-### `config:init`
+### `init`
 
-Create `.commit-coach.json` and run onboarding wizard in TTY mode.
+Run first-time setup wizard. This is the recommended entry point.
 
 ```bash
-ccm config:init
-ccm config:init -g
-ccm config:init --defaults
+ccm init
+ccm init -g
+ccm init --defaults
 ```
 
-Wizard options include:
+Wizard steps:
 
-- scope: local/global
+- scope: local / global
+- provider: openai, groq, ollama, gemini, deepseek, mistral, openrouter, or custom
+- API key (skipped for ollama)
+- model: fetched from provider API, or enter manually
 - language: `ko` / `en`
-- theme: `ocean` / `sunset` / `forest`
-- mascot: `cat` / `none`
+
+`config:init` is kept as a backward-compatible alias.
 
 ### `config:set`
 
@@ -122,8 +129,8 @@ Update one config key.
 
 ```bash
 ccm config:set language ko
-ccm config:set brandTheme sunset
-ccm config:set mascotStyle cat
+ccm config:set provider groq
+ccm config:set model llama-3.3-70b-versatile
 ccm config:set -g language en
 ```
 
@@ -162,32 +169,39 @@ Local overrides global.
   "commitStyle": "conventional",
   "maxSubjectLength": 72,
   "scopes": ["core", "api", "web", "docs"],
-  "model": "gpt-4.1-mini",
-  "brandTheme": "ocean",
-  "mascotStyle": "cat"
+  "provider": "groq",
+  "model": "llama-3.3-70b-versatile",
+  "apiKey": "gsk_..."
 }
 ```
 
 ## AI vs Fallback
 
-- If `OPENAI_API_KEY` is available and API call succeeds, AI output is used.
+- If a provider and API key are configured, AI output is used.
 - If not, commit-coach falls back to local heuristics.
 - Use `--verbose` to see generation source details.
 
-Set API key:
+Configure via setup wizard or manually:
+
+```bash
+ccm config:set provider openai
+ccm config:set apiKey sk-...
+```
+
+Or use environment variable (fallback):
 
 ```bash
 export OPENAI_API_KEY="your-key"
 ```
 
-## First-run onboarding behavior
+## First-run behavior
 
 For `msg`/`pr`, commit-coach checks whether user config exists.
 
-- Interactive terminal + no config: onboarding wizard is triggered automatically.
-- CI/non-TTY: onboarding is skipped and command runs with defaults.
+- No config found: prints "run `ccm init`" and exits.
+- CI/non-TTY: same behavior (no auto-wizard).
 
-To skip onboarding explicitly:
+To skip the config check:
 
 ```bash
 COMMIT_COACH_SKIP_ONBOARDING=1 ccm msg
