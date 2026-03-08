@@ -136,8 +136,11 @@ test("initConfig applies provided initial values", async () => {
 
 test("hasAnyUserConfig is false when no config exists", async () => {
   const tempDir = await makeTempDir();
-  const hasConfig = await hasAnyUserConfig(tempDir);
-  assert.equal(hasConfig, false);
+  const tempHome = await makeTempDir();
+  await withGlobalHome(tempHome, async () => {
+    const hasConfig = await hasAnyUserConfig(tempDir);
+    assert.equal(hasConfig, false);
+  });
 });
 
 test("hasAnyUserConfig is true when local config exists", async () => {

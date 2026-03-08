@@ -13,7 +13,8 @@ const configSchema = z.object({
   scopes: z.array(z.string()).default(["core", "api", "web", "docs"]),
   model: z.string().min(1).default("gpt-4.1-mini"),
   brandTheme: z.enum(["ocean", "sunset", "forest"]).default("ocean"),
-  mascotStyle: z.enum(["cat", "none"]).default("cat")
+  mascotStyle: z.enum(["cat", "none"]).default("cat"),
+  apiKey: z.string().min(1).optional()
 });
 
 type ConfigKey = keyof CommitCoachConfig;
@@ -102,6 +103,12 @@ function parseConfigValue(key: ConfigKey, rawValue: string): CommitCoachConfig[C
       }
       return rawValue;
     }
+    case "apiKey": {
+      if (rawValue.trim().length === 0) {
+        throw new Error("apiKey must be a non-empty string");
+      }
+      return rawValue.trim();
+    }
   }
 }
 
@@ -174,5 +181,6 @@ export const supportedConfigKeys: ConfigKey[] = [
   "scopes",
   "model",
   "brandTheme",
-  "mascotStyle"
+  "mascotStyle",
+  "apiKey"
 ];
