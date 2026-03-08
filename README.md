@@ -2,7 +2,7 @@
 
 AI-powered CLI for generating high-signal commit messages and pull request summaries from `git diff`.
 
-[![npm version](https://img.shields.io/npm/v/commit-coach.svg)](https://www.npmjs.com/package/commit-coach)
+[![npm version](https://img.shields.io/npm/v/%40lizzy_o3o%2Fcommit-coach.svg)](https://www.npmjs.com/package/@lizzy_o3o/commit-coach)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18.0.0-339933)](https://nodejs.org/)
 
@@ -27,18 +27,18 @@ AI-powered CLI for generating high-signal commit messages and pull request summa
 ### Global install
 
 ```bash
-npm install -g commit-coach
+npm install -g @lizzy_o3o/commit-coach
 ```
 
 ### Run without global install
 
 ```bash
-npx commit-coach --help
+npx @lizzy_o3o/commit-coach --help
 ```
 
 ### Useful aliases
 
-`commit-coach` installs these binary names:
+`@lizzy_o3o/commit-coach` installs these binary names:
 
 - `commit-coach`
 - `ccoach`
@@ -224,7 +224,7 @@ Select bump type (`patch`/`minor`/`major`) and write a summary.
 
 Set this in GitHub repository settings:
 
-- `NPM_TOKEN`: npm automation token with publish access for `commit-coach`
+- `NPM_TOKEN`: npm automation token with publish access for `@lizzy_o3o/commit-coach`
 
 ### 4) Local manual release (optional)
 
@@ -238,8 +238,8 @@ npm run release
 ## Reinstall Global CLI (clean reset)
 
 ```bash
-npm unlink -g commit-coach || true
-npm uninstall -g commit-coach || true
+npm unlink -g @lizzy_o3o/commit-coach || true
+npm uninstall -g @lizzy_o3o/commit-coach || true
 npm run build
 npm link
 ccm --help
