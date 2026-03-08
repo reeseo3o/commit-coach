@@ -27,6 +27,11 @@ interface DiffSignals {
   removedLines: string[];
 }
 
+interface JsxAttributeChange {
+  component?: string;
+  removedAttributes: string[];
+}
+
 function getHeuristicPrCopy(language: CommitCoachConfig["language"]): HeuristicPrCopy {
   if (language === "ko") {
     return {
@@ -80,6 +85,69 @@ function collectDiffSignals(diff: string): DiffSignals {
   return { addedLines, removedLines };
 }
 
+function stripLineComment(line: string): string {
+  return line.replace(/\/\/.*$/, "").trim();
+}
+
+function extractJsxTagAttributes(line: string): { component?: string; attributes: string[] } | undefined {
+  const cleaned = stripLineComment(line);
+  const tagMatch = cleaned.match(/<([A-Z][A-Za-z0-9]*)\s+([^>]*)/);
+  if (!tagMatch) {
+    return undefined;
+  }
+
+  const [, component, rawAttributes] = tagMatch;
+  const attributes = [...rawAttributes.matchAll(/\b([a-z][a-zA-Z0-9_-]*)\b(?=\s*=|\s|$)/g)]
+    .map((match) => match[1])
+    .filter((name) => !["true", "false"].includes(name));
+
+  return {
+    component,
+    attributes: [...new Set(attributes)]
+  };
+}
+
+function extractStandaloneJsxAttribute(line: string): string | undefined {
+  const cleaned = stripLineComment(line);
+  const match = cleaned.match(/^([a-z][a-zA-Z0-9_-]*)\s*(?:=\{[^}]*\}|=\"[^\"]*\"|='[^']*')?$/);
+  return match?.[1];
+}
+
+function detectJsxAttributeChanges(removedLines: string[], addedLines: string[]): JsxAttributeChange[] {
+  const changes: JsxAttributeChange[] = [];
+  const pairCount = Math.min(removedLines.length, addedLines.length);
+
+  for (let index = 0; index < pairCount; index += 1) {
+    const removedTag = extractJsxTagAttributes(removedLines[index]);
+    const addedTag = extractJsxTagAttributes(addedLines[index]);
+
+    if (!removedTag || !addedTag || removedTag.component !== addedTag.component) {
+      const removedStandaloneAttribute = extractStandaloneJsxAttribute(removedLines[index]);
+      const addedStandaloneAttribute = extractStandaloneJsxAttribute(addedLines[index]);
+
+      if (removedStandaloneAttribute && removedStandaloneAttribute !== addedStandaloneAttribute) {
+        changes.push({
+          removedAttributes: [removedStandaloneAttribute]
+        });
+      }
+
+      continue;
+    }
+
+    const removedAttributes = removedTag.attributes.filter((name) => !addedTag.attributes.includes(name));
+    if (removedAttributes.length === 0) {
+      continue;
+    }
+
+    changes.push({
+      component: removedTag.component,
+      removedAttributes
+    });
+  }
+
+  return changes;
+}
+
 function heuristicType(files: string[], diff: string, signals: DiffSignals): string {
   if (files.some((file) => file.includes("test") || file.endsWith(".spec.ts"))) {
     return "test";
@@ -104,6 +172,11 @@ function heuristicType(files: string[], diff: string, signals: DiffSignals): str
   const addedTerms = extractTerms(signals.addedLines);
   const removedTerms = extractTerms(signals.removedLines);
   const removedOnlyCount = removedTerms.filter((term) => !addedTerms.includes(term)).length;
+  const jsxAttributeChanges = detectJsxAttributeChanges(signals.removedLines, signals.addedLines);
+  if (jsxAttributeChanges.some((change) => change.removedAttributes.length > 0)) {
+    return "refactor";
+  }
+
   if (removedOnlyCount > 0 && signals.removedLines.length >= signals.addedLines.length) {
     return "refactor";
   }
@@ -573,6 +646,7 @@ function buildPrimarySubject(
   const removedOnly = new Set(removedTerms.filter((term) => !addedTerms.includes(term)));
   const removedFocus = topTerms(removedTerms, new Set(addedTerms), 3);
   const addedFocus = topTerms(addedTerms, new Set(), 3);
+  const jsxAttributeChanges = detectJsxAttributeChanges(signals.removedLines, signals.addedLines);
   const isRemoval = signals.removedLines.length > signals.addedLines.length || removedOnly.size > 0;
   const isMultiFile = files.length > 1;
   const removalWords = removedFocus.length > 0 ? removedFocus.join(" ") : (language === "ko" ? "불필요 코드" : "unused code");
@@ -594,6 +668,19 @@ function buildPrimarySubject(
     return language === "ko"
       ? `${type}${suffix}: ${componentName} 컴포넌트에서 사용하지 않는 scroll button 제거`
       : `${type}${suffix}: remove unused scroll button from ${componentName} component`;
+  }
+
+  const primaryJsxAttributeChange = jsxAttributeChanges[0];
+  if (primaryJsxAttributeChange && primaryJsxAttributeChange.removedAttributes.length > 0) {
+    const targetComponent = componentName ?? primaryJsxAttributeChange.component;
+    const attributeLabel = primaryJsxAttributeChange.removedAttributes.join(" ");
+    if (targetComponent) {
+      return language === "ko"
+        ? `${type}${suffix}: ${targetComponent} 컴포넌트에서 ${attributeLabel} 속성 제거`
+        : `${type}${suffix}: remove ${attributeLabel} attribute from ${targetComponent} component`;
+    }
+
+    return language === "ko" ? `${type}${suffix}: ${attributeLabel} 속성 제거` : `${type}${suffix}: remove ${attributeLabel} attribute`;
   }
 
   if (isRemoval) {

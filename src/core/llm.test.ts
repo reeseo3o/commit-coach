@@ -296,3 +296,34 @@ test("buildHeuristicCommitSuggestions marks removed JSX priority prop as refacto
   assert.match(suggestions[0].subject, /priority/);
   assert.doesNotMatch(suggestions[0].subject, /핵심 동작 개선/);
 });
+
+test("buildHeuristicCommitSuggestions detects commented-out JSX attribute as removal", () => {
+  const diff = [
+    "diff --git a/src/components/Hero.tsx b/src/components/Hero.tsx",
+    "--- a/src/components/Hero.tsx",
+    "+++ b/src/components/Hero.tsx",
+    "-          <Image src={heroImage} alt={title} fill className=\"object-cover\" priority />",
+    "+          <Image src={heroImage} alt={title} fill className=\"object-cover\" // priority",
+    "+          />"
+  ].join("\n");
+
+  const suggestions = buildHeuristicCommitSuggestions(["src/components/Hero.tsx"], diff, koConfig);
+
+  assert.match(suggestions[0].subject, /^refactor:/);
+  assert.match(suggestions[0].subject, /Hero 컴포넌트에서 priority 속성 제거/);
+});
+
+test("buildHeuristicCommitSuggestions detects commented-out standalone JSX prop line", () => {
+  const diff = [
+    "diff --git a/src/components/Hero.tsx b/src/components/Hero.tsx",
+    "--- a/src/components/Hero.tsx",
+    "+++ b/src/components/Hero.tsx",
+    "-          priority",
+    "+          // priority"
+  ].join("\n");
+
+  const suggestions = buildHeuristicCommitSuggestions(["src/components/Hero.tsx"], diff, koConfig);
+
+  assert.match(suggestions[0].subject, /^refactor:/);
+  assert.match(suggestions[0].subject, /Hero 컴포넌트에서 priority 속성 제거/);
+});
